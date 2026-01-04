@@ -26,14 +26,15 @@ func NewPostgresExpenseRepository(pool *pgxpool.Pool) *PostgresExpenseRepository
 // Create adiciona uma nova despesa no banco
 func (r *PostgresExpenseRepository) Create(ctx context.Context, expense *domain.Expense) error {
 	query := `
-		INSERT INTO expenses (id, description, amount, category, date, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO expenses (id, user_id, description, amount, category, date, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	_, err := r.pool.Exec(
 		ctx,
 		query,
 		expense.ID,
+		expense.UserID,
 		expense.Description,
 		expense.Amount,
 		expense.Category,
@@ -56,7 +57,7 @@ func (r *PostgresExpenseRepository) Create(ctx context.Context, expense *domain.
 // GetByID retorna uma despesa pelo ID
 func (r *PostgresExpenseRepository) GetByID(ctx context.Context, id string) (*domain.Expense, error) {
 	query := `
-		SELECT id, description, amount, category, date, created_at, updated_at
+		SELECT id, user_id, description, amount, category, date, created_at, updated_at
 		FROM expenses
 		WHERE id = $1
 	`
@@ -64,6 +65,7 @@ func (r *PostgresExpenseRepository) GetByID(ctx context.Context, id string) (*do
 	var expense domain.Expense
 	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&expense.ID,
+		&expense.UserID,
 		&expense.Description,
 		&expense.Amount,
 		&expense.Category,
@@ -85,7 +87,7 @@ func (r *PostgresExpenseRepository) GetByID(ctx context.Context, id string) (*do
 // GetAll retorna todas as despesas
 func (r *PostgresExpenseRepository) GetAll(ctx context.Context) ([]*domain.Expense, error) {
 	query := `
-		SELECT id, description, amount, category, date, created_at, updated_at
+		SELECT id, user_id, description, amount, category, date, created_at, updated_at
 		FROM expenses
 		ORDER BY date DESC, created_at DESC
 	`
@@ -101,6 +103,7 @@ func (r *PostgresExpenseRepository) GetAll(ctx context.Context) ([]*domain.Expen
 		var expense domain.Expense
 		err := rows.Scan(
 			&expense.ID,
+			&expense.UserID,
 			&expense.Description,
 			&expense.Amount,
 			&expense.Category,
@@ -190,6 +193,7 @@ func (r *PostgresExpenseRepository) GetAllWithFilters(ctx context.Context, filte
 		var expense domain.Expense
 		err := rows.Scan(
 			&expense.ID,
+			&expense.UserID,
 			&expense.Description,
 			&expense.Amount,
 			&expense.Category,
@@ -234,10 +238,17 @@ func (r *PostgresExpenseRepository) buildFilterQuery(filters *domain.ExpenseFilt
 	if isCount {
 		query = "SELECT COUNT(*) FROM expenses WHERE 1=1"
 	} else {
-		query = "SELECT id, description, amount, category, date, created_at, updated_at FROM expenses WHERE 1=1"
+		query = "SELECT id, user_id, description, amount, category, date, created_at, updated_at FROM expenses WHERE 1=1"
 	}
 
 	// Filtros WHERE
+	// Filtro por user_id (CRÍTICO para isolamento de dados)
+	if filters.UserID != nil {
+		query += " AND user_id = $" + formatArgNum(argCount)
+		args = append(args, *filters.UserID)
+		argCount++
+	}
+
 	if filters.Category != nil {
 		query += " AND category = $" + formatArgNum(argCount)
 		args = append(args, *filters.Category)

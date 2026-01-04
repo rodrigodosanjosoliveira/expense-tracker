@@ -10,14 +10,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/rodrigo/expense-tracker/internal/config"
 	"github.com/rodrigo/expense-tracker/internal/database"
 	"github.com/rodrigo/expense-tracker/internal/handler"
+	"github.com/rodrigo/expense-tracker/internal/middleware"
 	"github.com/rodrigo/expense-tracker/internal/repository"
 	"github.com/rodrigo/expense-tracker/internal/service"
 
-	httpSwagger "github.com/swaggo/http-swagger"
 	_ "github.com/rodrigo/expense-tracker/docs" // Importa os docs gerados
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 // @title Expense Tracker API
@@ -36,22 +39,36 @@ import (
 // @schemes http
 
 func main() {
-	// Carregar configurações
-	cfg := config.Load()
+	if err := godotenv.Load(); err != nil {
+		log.Println("Error loading .env file")
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Error loading config: %v", err)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("Error validating config: %v", err)
+	}
 
 	// Conceito: Inicialização das dependências (Dependency Injection)
-	var repo repository.ExpenseRepository
+	var expenseRepo repository.ExpenseRepository
+	var userRepo repository.UserRepository
+	var webhookRepo repository.WebhookRepository
 	var cleanup func()
 
 	// Decidir qual repository usar baseado em variáveis de ambiente
-	if os.Getenv("DB_HOST") != "" {
+	if cfg.UsePostgreSQL() {
 		// Usar PostgreSQL
 		log.Println("Initializing PostgreSQL repository...")
 		pool, err := database.NewPostgresPool(&cfg.Database)
 		if err != nil {
 			log.Fatalf("Failed to connect to database: %v", err)
 		}
-		repo = repository.NewPostgresExpenseRepository(pool)
+		expenseRepo = repository.NewPostgresExpenseRepository(pool)
+		userRepo = repository.NewPostgresUserRepository(pool)
+		webhookRepo = repository.NewPostgresWebhookRepository(pool)
 		cleanup = func() {
 			log.Println("Closing database connection...")
 			pool.Close()
@@ -60,47 +77,159 @@ func main() {
 	} else {
 		// Usar in-memory (desenvolvimento/testes)
 		log.Println("Using in-memory repository (set DB_HOST to use PostgreSQL)")
-		repo = repository.NewMemoryExpenseRepository()
+		expenseRepo = repository.NewMemoryExpenseRepository()
+		// Note: UserRepository e WebhookRepository não têm implementação in-memory, PostgreSQL é obrigatório
+		log.Println("⚠ WARNING: Authentication and webhooks require PostgreSQL. Set DB_HOST to enable.")
 		cleanup = func() {}
 	}
+
 	defer cleanup()
 
+	// Inicializar services
 	idGen := service.NewUUIDGenerator()
-	expenseService := service.NewExpenseService(repo, idGen)
+	expenseService := service.NewExpenseService(expenseRepo, idGen)
 	expenseHandler := handler.NewExpenseHandler(expenseService)
+
+	// Inicializar autenticação (apenas se PostgreSQL estiver configurado)
+	var authHandler *handler.AuthHandler
+	var authMiddleware *middleware.AuthMiddleware
+
+	// Inicializar webhooks e notificações (apenas se PostgreSQL estiver configurado)
+	var webhookHandler *handler.WebhookHandler
+	var notificationService *service.NotificationService
+
+	if cfg.UsePostgreSQL() {
+		// Autenticação
+		authService := service.NewAuthService(userRepo, idGen, cfg.JWTSecret)
+		authHandler = handler.NewAuthHandler(authService)
+		authMiddleware = middleware.NewAuthMiddleware(authService)
+		log.Println("✓ Authentication enabled")
+
+		// Webhooks e notificações
+		notificationService = service.NewNotificationService(webhookRepo)
+		webhookService := service.NewWebhookService(webhookRepo, idGen)
+		webhookHandler = handler.NewWebhookHandler(webhookService)
+
+		// Injetar notification service no expense service para disparar notificações
+		expenseService.SetNotificationService(notificationService)
+
+		log.Println("✓ Webhooks and notifications enabled")
+	} else {
+		log.Println("⚠ Authentication and webhooks disabled (PostgreSQL required)")
+	}
 
 	// Conceito: Configurar rotas usando http.ServeMux (router padrão)
 	mux := http.NewServeMux()
 
-	// Rotas da API
-	mux.HandleFunc("/expenses", func(w http.ResponseWriter, r *http.Request) {
-		// Router simples baseado no método HTTP
-		switch r.Method {
-		case http.MethodGet:
-			if r.URL.Path == "/expenses" || r.URL.Path == "/expenses/" {
-				expenseHandler.ListExpenses(w, r)
-			} else {
-				expenseHandler.GetExpense(w, r)
-			}
-		case http.MethodPost:
-			expenseHandler.CreateExpense(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	// Rotas de autenticação (públicas)
+	if authHandler != nil {
+		mux.HandleFunc("/auth/register", authHandler.Register)
+		mux.HandleFunc("/auth/login", authHandler.Login)
+		log.Println("✓ Auth routes registered: /auth/register, /auth/login")
+	}
 
-	mux.HandleFunc("/expenses/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			expenseHandler.GetExpense(w, r)
-		case http.MethodPut:
-			expenseHandler.UpdateExpense(w, r)
-		case http.MethodDelete:
-			expenseHandler.DeleteExpense(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	// Rotas da API de expenses (protegidas com autenticação se disponível)
+	if authMiddleware != nil {
+		// Com autenticação
+		mux.HandleFunc("/expenses", func(w http.ResponseWriter, r *http.Request) {
+			handler := authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodGet:
+					if r.URL.Path == "/expenses" || r.URL.Path == "/expenses/" {
+						expenseHandler.ListExpenses(w, r)
+					} else {
+						expenseHandler.GetExpense(w, r)
+					}
+				case http.MethodPost:
+					expenseHandler.CreateExpense(w, r)
+				default:
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+			})
+			handler(w, r)
+		})
+
+		mux.HandleFunc("/expenses/", func(w http.ResponseWriter, r *http.Request) {
+			handler := authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodGet:
+					expenseHandler.GetExpense(w, r)
+				case http.MethodPut:
+					expenseHandler.UpdateExpense(w, r)
+				case http.MethodDelete:
+					expenseHandler.DeleteExpense(w, r)
+				default:
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+			})
+			handler(w, r)
+		})
+		log.Println("✓ Expense routes protected with authentication")
+	} else {
+		// Sem autenticação (modo desenvolvimento)
+		mux.HandleFunc("/expenses", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				if r.URL.Path == "/expenses" || r.URL.Path == "/expenses/" {
+					expenseHandler.ListExpenses(w, r)
+				} else {
+					expenseHandler.GetExpense(w, r)
+				}
+			case http.MethodPost:
+				expenseHandler.CreateExpense(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})
+
+		mux.HandleFunc("/expenses/", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				expenseHandler.GetExpense(w, r)
+			case http.MethodPut:
+				expenseHandler.UpdateExpense(w, r)
+			case http.MethodDelete:
+				expenseHandler.DeleteExpense(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})
+		log.Println("⚠ Expense routes running WITHOUT authentication")
+	}
+
+	// Rotas de webhooks (protegidas com autenticação)
+	if webhookHandler != nil && authMiddleware != nil {
+		mux.HandleFunc("/webhooks", func(w http.ResponseWriter, r *http.Request) {
+			handler := authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodGet:
+					webhookHandler.ListWebhooks(w, r)
+				case http.MethodPost:
+					webhookHandler.CreateWebhook(w, r)
+				default:
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+			})
+			handler(w, r)
+		})
+
+		mux.HandleFunc("/webhooks/", func(w http.ResponseWriter, r *http.Request) {
+			handler := authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodGet:
+					webhookHandler.GetWebhook(w, r)
+				case http.MethodPut:
+					webhookHandler.UpdateWebhook(w, r)
+				case http.MethodDelete:
+					webhookHandler.DeleteWebhook(w, r)
+				default:
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+			})
+			handler(w, r)
+		})
+		log.Println("✓ Webhook routes registered: /webhooks")
+	}
 
 	// Rota de health check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -112,7 +241,7 @@ func main() {
 	mux.HandleFunc("/swagger/", httpSwagger.WrapHandler)
 
 	// Conceito: Configurar servidor HTTP
-	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	serverAddr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
 	server := &http.Server{
 		Addr:         serverAddr,
 		Handler:      mux,

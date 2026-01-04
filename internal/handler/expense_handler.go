@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/rodrigo/expense-tracker/internal/domain"
+	"github.com/rodrigo/expense-tracker/internal/middleware"
 	"github.com/rodrigo/expense-tracker/internal/repository"
 	"github.com/rodrigo/expense-tracker/internal/service"
 )
@@ -40,12 +41,22 @@ func (h *ExpenseHandler) CreateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extrair user_id do context (injetado pelo middleware de autenticação)
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var expense domain.Expense
 	// Conceito: Decoder para ler JSON do request body
 	if err := json.NewDecoder(r.Body).Decode(&expense); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
+
+	// Associar despesa ao usuário autenticado
+	expense.UserID = userID
 
 	if err := h.service.CreateExpense(r.Context(), &expense); err != nil {
 		switch err {
@@ -80,6 +91,13 @@ func (h *ExpenseHandler) GetExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extrair user_id do context
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// Extrair ID do path (simplificado - em produção use um router)
 	id := strings.TrimPrefix(r.URL.Path, "/expenses/")
 	if id == "" || id == "/expenses/" {
@@ -97,6 +115,12 @@ func (h *ExpenseHandler) GetExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verificar se a despesa pertence ao usuário autenticado
+	if expense.UserID != userID {
+		http.Error(w, "Forbidden: this expense belongs to another user", http.StatusForbidden)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(expense)
 }
@@ -106,6 +130,7 @@ func (h *ExpenseHandler) GetExpense(w http.ResponseWriter, r *http.Request) {
 // @Description Retorna despesas com suporte a filtros, ordenação e paginação
 // @Tags Expenses
 // @Produce json
+// @Security BearerAuth
 // @Param category query string false "Filtrar por categoria"
 // @Param min_amount query number false "Valor mínimo"
 // @Param max_amount query number false "Valor máximo"
@@ -117,6 +142,7 @@ func (h *ExpenseHandler) GetExpense(w http.ResponseWriter, r *http.Request) {
 // @Param offset query int false "Offset para paginação" default(0)
 // @Param page query int false "Página (alternativa ao offset)" default(1)
 // @Success 200 {object} domain.ExpenseListResponse
+// @Failure 401 {string} string "Não autorizado"
 // @Failure 500 {string} string "Erro interno"
 // @Router /expenses [get]
 func (h *ExpenseHandler) ListExpenses(w http.ResponseWriter, r *http.Request) {
@@ -125,8 +151,18 @@ func (h *ExpenseHandler) ListExpenses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extrair user_id do context (injetado pelo middleware de autenticação)
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// Parsear filtros dos query parameters
 	filters := ParseExpenseFilters(r)
+
+	// Injetar user_id nos filtros para garantir isolamento de dados
+	filters.UserID = &userID
 
 	// Buscar com filtros
 	response, err := h.service.ListExpensesWithFilters(r.Context(), filters)
@@ -158,9 +194,32 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extrair user_id do context
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	id := strings.TrimPrefix(r.URL.Path, "/expenses/")
 	if id == "" {
 		http.Error(w, "ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Verificar se a despesa existe e pertence ao usuário
+	existing, err := h.service.GetExpense(r.Context(), id)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			http.Error(w, "Expense not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if existing.UserID != userID {
+		http.Error(w, "Forbidden: this expense belongs to another user", http.StatusForbidden)
 		return
 	}
 
@@ -171,6 +230,7 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expense.ID = id
+	expense.UserID = userID // Manter o mesmo user_id
 
 	if err := h.service.UpdateExpense(r.Context(), &expense); err != nil {
 		switch err {
@@ -204,9 +264,32 @@ func (h *ExpenseHandler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extrair user_id do context
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	id := strings.TrimPrefix(r.URL.Path, "/expenses/")
 	if id == "" {
 		http.Error(w, "ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Verificar se a despesa existe e pertence ao usuário
+	existing, err := h.service.GetExpense(r.Context(), id)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			http.Error(w, "Expense not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if existing.UserID != userID {
+		http.Error(w, "Forbidden: this expense belongs to another user", http.StatusForbidden)
 		return
 	}
 
