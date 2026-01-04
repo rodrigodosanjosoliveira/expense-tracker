@@ -10,9 +10,9 @@ import (
 
 // ExpenseService contém a lógica de negócio
 type ExpenseService struct {
-	repo repository.ExpenseRepository
-	// Conceito: Dependency Injection via struct field
-	idGenerator IDGenerator
+	repo                repository.ExpenseRepository
+	idGenerator         IDGenerator
+	notificationService *NotificationService // Opcional: para notificações
 }
 
 // IDGenerator é uma interface para gerar IDs únicos
@@ -29,6 +29,11 @@ func NewExpenseService(repo repository.ExpenseRepository, idGen IDGenerator) *Ex
 	}
 }
 
+// SetNotificationService define o serviço de notificações (opcional)
+func (s *ExpenseService) SetNotificationService(notificationService *NotificationService) {
+	s.notificationService = notificationService
+}
+
 // CreateExpense cria uma nova despesa
 func (s *ExpenseService) CreateExpense(ctx context.Context, expense *domain.Expense) error {
 	// Validar
@@ -42,12 +47,28 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, expense *domain.Expe
 	}
 
 	// Setar timestamps
-	now := time.Now()
+	now := time.Now().UTC()
 	expense.CreatedAt = now
 	expense.UpdatedAt = now
 
 	// Persistir
-	return s.repo.Create(ctx, expense)
+	if err := s.repo.Create(ctx, expense); err != nil {
+		return err
+	}
+
+	// Disparar notificações (se configurado)
+	if s.notificationService != nil && expense.UserID != "" {
+		// Notificar criação de despesa
+		eventData := domain.ExpenseEventData{
+			Expense: expense,
+			Action:  "created",
+		}
+
+		// Disparar em goroutine para não bloquear a resposta
+		go s.notificationService.TriggerEvent(context.Background(), expense.UserID, domain.WebhookEventExpenseCreated, eventData)
+	}
+
+	return nil
 }
 
 // GetExpense retorna uma despesa pelo ID
@@ -75,14 +96,46 @@ func (s *ExpenseService) UpdateExpense(ctx context.Context, expense *domain.Expe
 
 	// Preservar CreatedAt e atualizar UpdatedAt
 	expense.CreatedAt = existing.CreatedAt
-	expense.UpdatedAt = time.Now()
+	expense.UpdatedAt = time.Now().UTC()
 
-	return s.repo.Update(ctx, expense)
+	if err := s.repo.Update(ctx, expense); err != nil {
+		return err
+	}
+
+	// Disparar notificações (se configurado)
+	if s.notificationService != nil && expense.UserID != "" {
+		eventData := domain.ExpenseEventData{
+			Expense: expense,
+			Action:  "updated",
+		}
+		go s.notificationService.TriggerEvent(context.Background(), expense.UserID, domain.WebhookEventExpenseUpdated, eventData)
+	}
+
+	return nil
 }
 
 // DeleteExpense remove uma despesa
 func (s *ExpenseService) DeleteExpense(ctx context.Context, id string) error {
-	return s.repo.Delete(ctx, id)
+	// Buscar despesa antes de deletar (para notificações)
+	expense, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	// Disparar notificações (se configurado)
+	if s.notificationService != nil && expense.UserID != "" {
+		eventData := domain.ExpenseEventData{
+			Expense: expense,
+			Action:  "deleted",
+		}
+		go s.notificationService.TriggerEvent(context.Background(), expense.UserID, domain.WebhookEventExpenseDeleted, eventData)
+	}
+
+	return nil
 }
 
 // ListExpensesWithFilters retorna despesas com filtros, ordenação e paginação
