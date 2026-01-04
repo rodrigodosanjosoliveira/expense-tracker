@@ -97,13 +97,13 @@ swagger-gen: ## Gerar documentação Swagger
 
 # Comandos de Banco de Dados
 db-up: ## Iniciar PostgreSQL com Docker Compose
-	@docker-compose up -d postgres
+	@docker compose up -d postgres
 	@echo "Aguardando PostgreSQL iniciar..."
 	@sleep 3
 	@echo "✓ PostgreSQL rodando em localhost:5432"
 
 db-down: ## Parar PostgreSQL
-	@docker-compose down
+	@docker compose down
 	@echo "✓ PostgreSQL parado"
 
 db-migrate-up: ## Executar migrations (criar tabelas)

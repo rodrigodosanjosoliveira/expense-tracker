@@ -4,6 +4,9 @@ import "time"
 
 // ExpenseFilters define os filtros disponíveis para listar despesas
 type ExpenseFilters struct {
+	// Filtro de usuário (não exposto no JSON - definido pelo middleware)
+	UserID *string `json:"-"`
+
 	// Filtros
 	Category  *string    `json:"category,omitempty"`
 	MinAmount *float64   `json:"min_amount,omitempty"`
@@ -12,8 +15,8 @@ type ExpenseFilters struct {
 	EndDate   *time.Time `json:"end_date,omitempty"`
 
 	// Ordenação
-	SortBy    string `json:"sort_by,omitempty"`     // date, amount, category, created_at
-	SortOrder string `json:"sort_order,omitempty"`  // asc, desc
+	SortBy    string `json:"sort_by,omitempty"`    // date, amount, category, created_at
+	SortOrder string `json:"sort_order,omitempty"` // asc, desc
 
 	// Paginação
 	Limit  int `json:"limit,omitempty"`

@@ -20,9 +20,9 @@ func NewPostgresPool(cfg *config.DatabaseConfig) (*pgxpool.Pool, error) {
 
 	// Configurações do pool
 	// Conceito: Ajustar de acordo com a carga esperada
-	poolConfig.MaxConns = 25                   // Máximo de conexões
-	poolConfig.MinConns = 5                    // Mínimo de conexões mantidas
-	poolConfig.MaxConnLifetime = time.Hour     // Tempo máximo de vida de uma conexão
+	poolConfig.MaxConns = 25                      // Máximo de conexões
+	poolConfig.MinConns = 5                       // Mínimo de conexões mantidas
+	poolConfig.MaxConnLifetime = time.Hour        // Tempo máximo de vida de uma conexão
 	poolConfig.MaxConnIdleTime = 30 * time.Minute // Tempo máximo que uma conexão pode ficar idle
 	poolConfig.HealthCheckPeriod = time.Minute    // Intervalo de health check
 

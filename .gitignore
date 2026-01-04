@@ -29,3 +29,6 @@ Thumbs.db
 
 # Air (hot reload)
 tmp/
+/vendor/
+/.claude/
+/.env
