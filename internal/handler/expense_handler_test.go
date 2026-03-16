@@ -46,6 +46,7 @@ func TestExpenseHandlerCreateExpense(t *testing.T) {
 		name       string
 		body       interface{}
 		wantStatus int
+		addUserID  bool
 	}{
 		{
 			name: "valid expense",
@@ -56,6 +57,7 @@ func TestExpenseHandlerCreateExpense(t *testing.T) {
 				Date:        time.Now(),
 			},
 			wantStatus: http.StatusCreated,
+			addUserID:  true,
 		},
 		{
 			name: "invalid - empty description",
@@ -65,11 +67,24 @@ func TestExpenseHandlerCreateExpense(t *testing.T) {
 				Category:    "Alimentação",
 			},
 			wantStatus: http.StatusBadRequest,
+			addUserID:  true,
 		},
 		{
 			name:       "invalid JSON",
 			body:       "invalid json",
 			wantStatus: http.StatusBadRequest,
+			addUserID:  true,
+		},
+		{
+			name: "unauthorized - missing user ID",
+			body: domain.Expense{
+				Description: "Jantar",
+				Amount:      30.00,
+				Category:    "Alimentação",
+				Date:        time.Now(),
+			},
+			wantStatus: http.StatusUnauthorized,
+			addUserID:  false,
 		},
 	}
 
@@ -78,7 +93,10 @@ func TestExpenseHandlerCreateExpense(t *testing.T) {
 			// Conceito: Marshal converte struct para JSON
 			body, _ := json.Marshal(tt.body)
 			// Conceito: httptest.NewRequest cria uma request de teste
-			req := withUserID(httptest.NewRequest(http.MethodPost, ExpensesPath, bytes.NewReader(body)))
+			req := httptest.NewRequest(http.MethodPost, ExpensesPath, bytes.NewReader(body))
+			if tt.addUserID {
+				req = withUserID(req)
+			}
 			// Conceito: httptest.NewRecorder grava a resposta
 			w := httptest.NewRecorder()
 
