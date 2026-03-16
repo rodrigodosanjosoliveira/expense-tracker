@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rodrigo/expense-tracker/internal/domain"
+	"github.com/rodrigo/expense-tracker/internal/middleware"
 	"github.com/rodrigo/expense-tracker/internal/repository"
 	"github.com/rodrigo/expense-tracker/internal/service"
 )
@@ -17,6 +18,7 @@ import (
 const (
 	ExpensesPath    = "/expenses"
 	ExpenseByIDPath = "/expenses/123"
+	testUserID      = "test-user-id"
 )
 
 type mockIDGen struct{}
@@ -30,6 +32,11 @@ func setupHandler() *ExpenseHandler {
 	idGen := &mockIDGen{}
 	svc := service.NewExpenseService(repo, idGen)
 	return NewExpenseHandler(svc)
+}
+
+func withUserID(r *http.Request) *http.Request {
+	ctx := context.WithValue(r.Context(), middleware.UserIDKey, testUserID)
+	return r.WithContext(ctx)
 }
 
 func TestExpenseHandlerCreateExpense(t *testing.T) {
@@ -71,7 +78,7 @@ func TestExpenseHandlerCreateExpense(t *testing.T) {
 			// Conceito: Marshal converte struct para JSON
 			body, _ := json.Marshal(tt.body)
 			// Conceito: httptest.NewRequest cria uma request de teste
-			req := httptest.NewRequest(http.MethodPost, ExpensesPath, bytes.NewReader(body))
+			req := withUserID(httptest.NewRequest(http.MethodPost, ExpensesPath, bytes.NewReader(body)))
 			// Conceito: httptest.NewRecorder grava a resposta
 			w := httptest.NewRecorder()
 
@@ -105,6 +112,7 @@ func TestExpenseHandlerGetExpense(t *testing.T) {
 		Amount:      10.00,
 		Category:    "Cat1",
 		Date:        time.Now(),
+		UserID:      testUserID,
 	}
 	handler.service.CreateExpense(context.TODO(), expense)
 
@@ -132,7 +140,7 @@ func TestExpenseHandlerGetExpense(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req := withUserID(httptest.NewRequest(http.MethodGet, tt.path, nil))
 			w := httptest.NewRecorder()
 
 			handler.GetExpense(w, req)
@@ -153,9 +161,10 @@ func TestExpenseHandlerListExpenses(t *testing.T) {
 		Amount:      10,
 		Category:    "Cat1",
 		Date:        time.Now(),
+		UserID:      testUserID,
 	})
 
-	req := httptest.NewRequest(http.MethodGet, ExpensesPath, nil)
+	req := withUserID(httptest.NewRequest(http.MethodGet, ExpensesPath, nil))
 	w := httptest.NewRecorder()
 
 	handler.ListExpenses(w, req)
@@ -192,6 +201,7 @@ func TestExpenseHandlerUpdateExpense(t *testing.T) {
 		Amount:      10.00,
 		Category:    "Cat1",
 		Date:        time.Now(),
+		UserID:      testUserID,
 	}
 	handler.service.CreateExpense(context.TODO(), expense)
 
@@ -203,7 +213,7 @@ func TestExpenseHandlerUpdateExpense(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(updatedExpense)
-	req := httptest.NewRequest(http.MethodPut, ExpenseByIDPath, bytes.NewReader(body))
+	req := withUserID(httptest.NewRequest(http.MethodPut, ExpenseByIDPath, bytes.NewReader(body)))
 	w := httptest.NewRecorder()
 
 	handler.UpdateExpense(w, req)
@@ -229,10 +239,11 @@ func TestExpenseHandlerDeleteExpense(t *testing.T) {
 		Amount:      10.00,
 		Category:    "Cat1",
 		Date:        time.Now(),
+		UserID:      testUserID,
 	}
 	handler.service.CreateExpense(context.TODO(), expense)
 
-	req := httptest.NewRequest(http.MethodDelete, ExpenseByIDPath, nil)
+	req := withUserID(httptest.NewRequest(http.MethodDelete, ExpenseByIDPath, nil))
 	w := httptest.NewRecorder()
 
 	handler.DeleteExpense(w, req)
@@ -242,7 +253,7 @@ func TestExpenseHandlerDeleteExpense(t *testing.T) {
 	}
 
 	// Verificar que foi deletado
-	req2 := httptest.NewRequest(http.MethodGet, "/expenses/123", nil)
+	req2 := withUserID(httptest.NewRequest(http.MethodGet, "/expenses/123", nil))
 	w2 := httptest.NewRecorder()
 	handler.GetExpense(w2, req2)
 
