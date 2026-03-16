@@ -20,6 +20,15 @@ if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
   exit 1
 fi
 
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+info()    { echo -e "${GREEN}[INFO]${NC} $1"; }
+warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error()   { echo -e "${RED}[ERRO]${NC} $1"; exit 1; }
+
 # Repositório alvo:
 # - 1º argumento do script: ./setup-github-repo.sh owner/repo
 # - ou variável de ambiente: GITHUB_REPO=owner/repo ./setup-github-repo.sh
@@ -46,15 +55,6 @@ if [[ -z "${REPO}" ]]; then
 fi
 
 BRANCH="main"
-
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-info()    { echo -e "${GREEN}[INFO]${NC} $1"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error()   { echo -e "${RED}[ERRO]${NC} $1"; exit 1; }
 
 confirm_destructive() {
   warn "Este script fará alterações potencialmente destrutivas no repositório '${REPO}' (proteção de branch, labels, etc.)."
