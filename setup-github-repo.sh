@@ -45,7 +45,10 @@ gh api \
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": []
+    "contexts": [
+      "CI / Lint & Test",
+      "CI / Check Merge Conflicts"
+    ]
   },
   "enforce_admins": true,
   "required_pull_request_reviews": {
