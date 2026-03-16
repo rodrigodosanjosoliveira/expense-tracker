@@ -72,7 +72,7 @@ jobs:
   # Valida que a PR não tem conflitos e está up-to-date com a main
   # ---------------------------------------------------------------------------
   check-conflicts:
-    name: Check Merge Conflicts
+    name: Check Conflicts & Up-to-date with main
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
@@ -80,12 +80,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check for merge conflicts
+      - name: Check for merge conflicts and up-to-date with main
         run: |
           git fetch origin main
-          if ! git merge-tree $(git merge-base HEAD origin/main) HEAD origin/main | grep -q "^<<<<<<"; then
-            echo "Sem conflitos de merge"
-          else
+
+          # Fail if the branch is behind or diverged from origin/main
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            echo "A branch do PR não está up-to-date com origin/main. Atualize sua branch com a main."
+            exit 1
+          fi
+
+          # Fail if there are merge conflicts with main
+          if git merge-tree "$(git merge-base HEAD origin/main)" HEAD origin/main | grep -q "^<<<<<<"; then
             echo "Existem conflitos de merge com a main"
             exit 1
           fi
+
+          echo "Branch está up-to-date e sem conflitos de merge com a main"
