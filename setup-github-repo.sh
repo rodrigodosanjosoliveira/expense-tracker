@@ -10,6 +10,16 @@
 
 set -euo pipefail
 
+# declare -A (associative arrays) requires Bash 4.0+.
+# macOS ships Bash 3.2 by default; abort early with a clear message.
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+  echo "ERRO: Este script requer Bash 4.0 ou superior (versão atual: ${BASH_VERSION})." >&2
+  echo "      No macOS, instale uma versão mais recente via Homebrew:" >&2
+  echo "        brew install bash" >&2
+  echo "      Em seguida, execute o script com: bash /usr/local/bin/bash $0" >&2
+  exit 1
+fi
+
 # Repositório alvo:
 # - 1º argumento do script: ./setup-github-repo.sh owner/repo
 # - ou variável de ambiente: GITHUB_REPO=owner/repo ./setup-github-repo.sh
