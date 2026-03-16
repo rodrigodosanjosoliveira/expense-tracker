@@ -16,7 +16,7 @@ if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
   echo "ERRO: Este script requer Bash 4.0 ou superior (versão atual: ${BASH_VERSION})." >&2
   echo "      No macOS, instale uma versão mais recente via Homebrew:" >&2
   echo "        brew install bash" >&2
-  echo "      Em seguida, execute o script com: bash /usr/local/bin/bash $0" >&2
+  echo "      Em seguida, execute o script com: /usr/local/bin/bash \"\$0\"" >&2
   exit 1
 fi
 
