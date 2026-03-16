@@ -197,7 +197,7 @@ echo ""
     # ---------------------------------------------------------------------------
     # 4. Ruleset adicional (GitHub Rulesets - mais moderno que branch protection)
     # ---------------------------------------------------------------------------
-    info "Configurando ruleset para conventional commits nos PRs..."
+    info "Configurando ruleset de proteção da branch main..."
 
     RULESET_NAME="Protect main branch"
 
