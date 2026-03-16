@@ -184,46 +184,64 @@ done
 info "Labels criadas com sucesso!"
 echo ""
 
-# ---------------------------------------------------------------------------
-# 4. Ruleset adicional (GitHub Rulesets - mais moderno que branch protection)
-# ---------------------------------------------------------------------------
-info "Configurando ruleset para conventional commits nos PRs..."
+    # ---------------------------------------------------------------------------
+    # 4. Ruleset adicional (GitHub Rulesets - mais moderno que branch protection)
+    # ---------------------------------------------------------------------------
+    info "Configurando ruleset para conventional commits nos PRs..."
 
-gh api \
-  --method POST \
-  -H "Accept: application/vnd.github+json" \
-  "/repos/${REPO}/rulesets" \
-  --input - <<EOF
-{
-  "name": "Protect main branch",
-  "target": "branch",
-  "enforcement": "active",
-  "conditions": {
-    "ref_name": {
-      "include": ["refs/heads/main"],
-      "exclude": []
-    }
-  },
-  "rules": [
-    { "type": "deletion" },
-    { "type": "non_fast_forward" },
-    { "type": "required_linear_history" },
+    RULESET_NAME="Protect main branch"
+
+    # Verifica se já existe um ruleset com o mesmo nome/target para tornarmos o script idempotente
+    existing_ruleset_id="$(gh api \
+      -H "Accept: application/vnd.github+json" \
+      "/repos/${REPO}/rulesets?target=branch&per_page=100" \
+      --jq ".[] | select(.name==\"${RULESET_NAME}\") | .id" 2>/dev/null | head -n1 || true)"
+
+    if [[ -n "${existing_ruleset_id:-}" ]]; then
+      info "Ruleset '${RULESET_NAME}' já existe (id: ${existing_ruleset_id}). Atualizando..."
+      RULESET_METHOD="PATCH"
+      RULESET_PATH="/repos/${REPO}/rulesets/${existing_ruleset_id}"
+    else
+      info "Ruleset '${RULESET_NAME}' não encontrado. Criando novo..."
+      RULESET_METHOD="POST"
+      RULESET_PATH="/repos/${REPO}/rulesets"
+    fi
+
+    gh api \
+      --method "${RULESET_METHOD}" \
+      -H "Accept: application/vnd.github+json" \
+      "${RULESET_PATH}" \
+      --input - <<EOF
     {
-      "type": "pull_request",
-      "parameters": {
-        "required_approving_review_count": 1,
-        "dismiss_stale_reviews_on_push": true,
-        "require_code_owner_review": false,
-        "require_last_push_approval": true,
-        "required_review_thread_resolution": true
-      }
+      "name": "Protect main branch",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "include": ["refs/heads/main"],
+          "exclude": []
+        }
+      },
+      "rules": [
+        { "type": "deletion" },
+        { "type": "non_fast_forward" },
+        { "type": "required_linear_history" },
+        {
+          "type": "pull_request",
+          "parameters": {
+            "required_approving_review_count": 1,
+            "dismiss_stale_reviews_on_push": true,
+            "require_code_owner_review": false,
+            "require_last_push_approval": true,
+            "required_review_thread_resolution": true
+          }
+        }
+      ]
     }
-  ]
-}
-EOF
+    EOF
 
-info "Ruleset configurado!"
-echo ""
+    info "Ruleset configurado!"
+    echo ""
 
 # ---------------------------------------------------------------------------
 # Resumo
