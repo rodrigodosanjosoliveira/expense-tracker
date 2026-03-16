@@ -262,6 +262,68 @@ func TestExpenseHandlerDeleteExpense(t *testing.T) {
 	}
 }
 
+func TestExpenseHandlerUnauthorized(t *testing.T) {
+	handler := setupHandler()
+
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+		method  string
+		path    string
+		body    interface{}
+	}{
+		{
+			name:    "CreateExpense without auth",
+			handler: handler.CreateExpense,
+			method:  http.MethodPost,
+			path:    ExpensesPath,
+			body:    domain.Expense{Description: "Test", Amount: 10, Category: "Cat"},
+		},
+		{
+			name:    "ListExpenses without auth",
+			handler: handler.ListExpenses,
+			method:  http.MethodGet,
+			path:    ExpensesPath,
+		},
+		{
+			name:    "GetExpense without auth",
+			handler: handler.GetExpense,
+			method:  http.MethodGet,
+			path:    ExpenseByIDPath,
+		},
+		{
+			name:    "UpdateExpense without auth",
+			handler: handler.UpdateExpense,
+			method:  http.MethodPut,
+			path:    ExpenseByIDPath,
+			body:    domain.Expense{Description: "Updated", Amount: 20, Category: "Cat"},
+		},
+		{
+			name:    "DeleteExpense without auth",
+			handler: handler.DeleteExpense,
+			method:  http.MethodDelete,
+			path:    ExpenseByIDPath,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var bodyBytes []byte
+			if tt.body != nil {
+				bodyBytes, _ = json.Marshal(tt.body)
+			}
+			req := httptest.NewRequest(tt.method, tt.path, bytes.NewReader(bodyBytes))
+			w := httptest.NewRecorder()
+
+			tt.handler(w, req)
+
+			if w.Code != http.StatusUnauthorized {
+				t.Errorf("%s: got status %d, want %d (Unauthorized)", tt.name, w.Code, http.StatusUnauthorized)
+			}
+		})
+	}
+}
+
 func TestExpenseHandlerMethodNotAllowed(t *testing.T) {
 	handler := setupHandler()
 
