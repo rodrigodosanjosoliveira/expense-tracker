@@ -10,7 +10,31 @@
 
 set -euo pipefail
 
-REPO="rodrigodosanjosoliveira/expense-tracker"
+# Repositório alvo:
+# - 1º argumento do script: ./setup-github-repo.sh owner/repo
+# - ou variável de ambiente: GITHUB_REPO=owner/repo ./setup-github-repo.sh
+# - ou auto-detecção via `gh repo view` / `git remote get-url origin`
+REPO="${1:-${GITHUB_REPO:-}}"
+
+if [[ -z "${REPO}" ]]; then
+  # Tenta detectar via GitHub CLI (repositório atual)
+  if gh_repo=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null); then
+    REPO="${gh_repo}"
+  else
+    # Fallback: tenta deduzir a partir do remote origin
+    if git_remote=$(git remote get-url origin 2>/dev/null); then
+      repo_path="${git_remote%.git}"
+      repo_path="${repo_path##*:}"          # git@github.com:owner/repo(.git)
+      repo_path="${repo_path##github.com/}" # https://github.com/owner/repo(.git)
+      REPO="${repo_path}"
+    fi
+  fi
+fi
+
+if [[ -z "${REPO}" ]]; then
+  error "Não foi possível determinar o repositório. Informe como argumento (owner/repo) ou defina GITHUB_REPO."
+fi
+
 BRANCH="main"
 
 GREEN='\033[0;32m'
@@ -22,6 +46,19 @@ info()    { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error()   { echo -e "${RED}[ERRO]${NC} $1"; exit 1; }
 
+confirm_destructive() {
+  warn "Este script fará alterações potencialmente destrutivas no repositório '${REPO}' (proteção de branch, labels, etc.)."
+  read -r -p "Tem certeza que deseja continuar? [y/N] " response
+  case "${response}" in
+    [yY][eE][sS]|[yY])
+      ;;
+    *)
+      info "Operação cancelada pelo usuário."
+      exit 0
+      ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # 0. Verificações iniciais
 # ---------------------------------------------------------------------------
@@ -31,6 +68,8 @@ gh auth status &>/dev/null || error "Você não está autenticado. Execute: gh a
 info "Repositório: $REPO"
 info "Branch protegida: $BRANCH"
 echo ""
+
+confirm_destructive
 
 # ---------------------------------------------------------------------------
 # 1. Proteção da branch main
