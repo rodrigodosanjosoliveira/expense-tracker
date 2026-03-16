@@ -96,7 +96,7 @@ gh api \
     "strict": true,
     "contexts": [
       "CI / Lint & Test",
-      "CI / Check Merge Conflicts"
+      "CI / Check Conflicts & Up-to-date with main"
     ]
   },
   "enforce_admins": true,
