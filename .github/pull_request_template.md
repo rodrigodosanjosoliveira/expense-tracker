@@ -30,7 +30,7 @@ Closes #<!-- número da issue -->
 - [ ] Adicionei testes para cobrir as mudanças (se aplicável)
 - [ ] Todos os testes passam localmente
 - [ ] Atualizei a documentação (se necessário)
-- [ ] Não há `console.log` ou código de debug esquecido
+- [ ] Não há prints/logs de debug esquecidos (ex.: `fmt.Println`, logs temporários)
 
 ---
 
