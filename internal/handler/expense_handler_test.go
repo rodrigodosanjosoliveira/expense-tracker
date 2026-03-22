@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rodrigo/expense-tracker/internal/domain"
+	"github.com/rodrigo/expense-tracker/internal/middleware"
 	"github.com/rodrigo/expense-tracker/internal/repository"
 	"github.com/rodrigo/expense-tracker/internal/service"
 )
@@ -17,6 +18,7 @@ import (
 const (
 	ExpensesPath    = "/expenses"
 	ExpenseByIDPath = "/expenses/123"
+	testUserID      = "test-user-id"
 )
 
 type mockIDGen struct{}
@@ -32,6 +34,11 @@ func setupHandler() *ExpenseHandler {
 	return NewExpenseHandler(svc)
 }
 
+func withUserID(r *http.Request) *http.Request {
+	ctx := context.WithValue(r.Context(), middleware.UserIDKey, testUserID)
+	return r.WithContext(ctx)
+}
+
 func TestExpenseHandlerCreateExpense(t *testing.T) {
 	handler := setupHandler()
 
@@ -39,6 +46,7 @@ func TestExpenseHandlerCreateExpense(t *testing.T) {
 		name       string
 		body       interface{}
 		wantStatus int
+		addUserID  bool
 	}{
 		{
 			name: "valid expense",
@@ -49,6 +57,7 @@ func TestExpenseHandlerCreateExpense(t *testing.T) {
 				Date:        time.Now(),
 			},
 			wantStatus: http.StatusCreated,
+			addUserID:  true,
 		},
 		{
 			name: "invalid - empty description",
@@ -58,11 +67,24 @@ func TestExpenseHandlerCreateExpense(t *testing.T) {
 				Category:    "Alimentação",
 			},
 			wantStatus: http.StatusBadRequest,
+			addUserID:  true,
 		},
 		{
 			name:       "invalid JSON",
 			body:       "invalid json",
 			wantStatus: http.StatusBadRequest,
+			addUserID:  true,
+		},
+		{
+			name: "unauthorized - missing user ID",
+			body: domain.Expense{
+				Description: "Jantar",
+				Amount:      30.00,
+				Category:    "Alimentação",
+				Date:        time.Now(),
+			},
+			wantStatus: http.StatusUnauthorized,
+			addUserID:  false,
 		},
 	}
 
@@ -72,6 +94,9 @@ func TestExpenseHandlerCreateExpense(t *testing.T) {
 			body, _ := json.Marshal(tt.body)
 			// Conceito: httptest.NewRequest cria uma request de teste
 			req := httptest.NewRequest(http.MethodPost, ExpensesPath, bytes.NewReader(body))
+			if tt.addUserID {
+				req = withUserID(req)
+			}
 			// Conceito: httptest.NewRecorder grava a resposta
 			w := httptest.NewRecorder()
 
@@ -105,6 +130,7 @@ func TestExpenseHandlerGetExpense(t *testing.T) {
 		Amount:      10.00,
 		Category:    "Cat1",
 		Date:        time.Now(),
+		UserID:      testUserID,
 	}
 	handler.service.CreateExpense(context.TODO(), expense)
 
@@ -132,7 +158,7 @@ func TestExpenseHandlerGetExpense(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req := withUserID(httptest.NewRequest(http.MethodGet, tt.path, nil))
 			w := httptest.NewRecorder()
 
 			handler.GetExpense(w, req)
@@ -153,9 +179,10 @@ func TestExpenseHandlerListExpenses(t *testing.T) {
 		Amount:      10,
 		Category:    "Cat1",
 		Date:        time.Now(),
+		UserID:      testUserID,
 	})
 
-	req := httptest.NewRequest(http.MethodGet, ExpensesPath, nil)
+	req := withUserID(httptest.NewRequest(http.MethodGet, ExpensesPath, nil))
 	w := httptest.NewRecorder()
 
 	handler.ListExpenses(w, req)
@@ -192,6 +219,7 @@ func TestExpenseHandlerUpdateExpense(t *testing.T) {
 		Amount:      10.00,
 		Category:    "Cat1",
 		Date:        time.Now(),
+		UserID:      testUserID,
 	}
 	handler.service.CreateExpense(context.TODO(), expense)
 
@@ -203,7 +231,7 @@ func TestExpenseHandlerUpdateExpense(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(updatedExpense)
-	req := httptest.NewRequest(http.MethodPut, ExpenseByIDPath, bytes.NewReader(body))
+	req := withUserID(httptest.NewRequest(http.MethodPut, ExpenseByIDPath, bytes.NewReader(body)))
 	w := httptest.NewRecorder()
 
 	handler.UpdateExpense(w, req)
@@ -229,10 +257,11 @@ func TestExpenseHandlerDeleteExpense(t *testing.T) {
 		Amount:      10.00,
 		Category:    "Cat1",
 		Date:        time.Now(),
+		UserID:      testUserID,
 	}
 	handler.service.CreateExpense(context.TODO(), expense)
 
-	req := httptest.NewRequest(http.MethodDelete, ExpenseByIDPath, nil)
+	req := withUserID(httptest.NewRequest(http.MethodDelete, ExpenseByIDPath, nil))
 	w := httptest.NewRecorder()
 
 	handler.DeleteExpense(w, req)
@@ -242,12 +271,74 @@ func TestExpenseHandlerDeleteExpense(t *testing.T) {
 	}
 
 	// Verificar que foi deletado
-	req2 := httptest.NewRequest(http.MethodGet, "/expenses/123", nil)
+	req2 := withUserID(httptest.NewRequest(http.MethodGet, "/expenses/123", nil))
 	w2 := httptest.NewRecorder()
 	handler.GetExpense(w2, req2)
 
 	if w2.Code != http.StatusNotFound {
 		t.Errorf("GetExpense() after delete status = %d, want %d", w2.Code, http.StatusNotFound)
+	}
+}
+
+func TestExpenseHandlerUnauthorized(t *testing.T) {
+	handler := setupHandler()
+
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+		method  string
+		path    string
+		body    interface{}
+	}{
+		{
+			name:    "CreateExpense without auth",
+			handler: handler.CreateExpense,
+			method:  http.MethodPost,
+			path:    ExpensesPath,
+			body:    domain.Expense{Description: "Test", Amount: 10, Category: "Cat"},
+		},
+		{
+			name:    "ListExpenses without auth",
+			handler: handler.ListExpenses,
+			method:  http.MethodGet,
+			path:    ExpensesPath,
+		},
+		{
+			name:    "GetExpense without auth",
+			handler: handler.GetExpense,
+			method:  http.MethodGet,
+			path:    ExpenseByIDPath,
+		},
+		{
+			name:    "UpdateExpense without auth",
+			handler: handler.UpdateExpense,
+			method:  http.MethodPut,
+			path:    ExpenseByIDPath,
+			body:    domain.Expense{Description: "Updated", Amount: 20, Category: "Cat"},
+		},
+		{
+			name:    "DeleteExpense without auth",
+			handler: handler.DeleteExpense,
+			method:  http.MethodDelete,
+			path:    ExpenseByIDPath,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var bodyBytes []byte
+			if tt.body != nil {
+				bodyBytes, _ = json.Marshal(tt.body)
+			}
+			req := httptest.NewRequest(tt.method, tt.path, bytes.NewReader(bodyBytes))
+			w := httptest.NewRecorder()
+
+			tt.handler(w, req)
+
+			if w.Code != http.StatusUnauthorized {
+				t.Errorf("%s: got status %d, want %d (Unauthorized)", tt.name, w.Code, http.StatusUnauthorized)
+			}
+		})
 	}
 }
 

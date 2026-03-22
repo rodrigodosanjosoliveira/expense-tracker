@@ -1,0 +1,100 @@
+# .github/workflows/ci.yaml
+# Pipeline de CI para expense-tracker
+# Roda em todo PR aberto ou atualizado para a branch main
+
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Valida que o título do PR segue Conventional Commits
+  # ---------------------------------------------------------------------------
+  lint-pr-title:
+    name: Lint PR Title
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            chore
+            ci
+            build
+            revert
+          requireScope: false
+
+  # ---------------------------------------------------------------------------
+  # Lint & Testes Go
+  # ---------------------------------------------------------------------------
+  test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build
+        run: go build ./cmd/api
+
+  # ---------------------------------------------------------------------------
+  # Valida que a PR não tem conflitos e está up-to-date com a main
+  # ---------------------------------------------------------------------------
+  check-conflicts:
+    name: Check Conflicts & Up-to-date with main
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check for merge conflicts and up-to-date with main
+        run: |
+          git fetch origin main
+
+          # Fail if the branch is behind or diverged from origin/main
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            echo "A branch do PR não está up-to-date com origin/main. Atualize sua branch com a main."
+            exit 1
+          fi
+
+          # Fail if there are merge conflicts with main
+          if git merge-tree "$(git merge-base HEAD origin/main)" HEAD origin/main | grep -q "^<<<<<<"; then
+            echo "Existem conflitos de merge com a main"
+            exit 1
+          fi
+
+          echo "Branch está up-to-date e sem conflitos de merge com a main"
