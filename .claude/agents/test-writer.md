@@ -41,11 +41,11 @@ Your job is to write tests from acceptance criteria before or alongside implemen
 - Test file: `internal/domain/<entity>_test.go`
 - Run: `go test -v ./internal/domain/`
 
-### Integration Tests (when touching DB layer)
-- Use real PostgreSQL — never mock the database
-- Require `DB_HOST` environment variable to run
+### Repository Tests
+- Use the existing in-memory repositories (e.g. `NewMemoryExpenseRepository()`)
+- Treat these as unit tests of the repository layer — no external DB required
 - Test file: `internal/repository/<module>_repository_test.go`
-- Run: `go test -v ./internal/repository/ -tags=integration`
+- Run: `go test -v ./internal/repository/`
 
 ## Deliver
 - Tests covering: happy path, error path, edge cases, and auth/user_id checks
