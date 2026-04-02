@@ -72,8 +72,6 @@ Expense Tracker (Go REST API)
 | Modulo | Arquivos de teste |
 |--------|------------------|
 | expense handler | `internal/handler/expense_handler_test.go` |
-| auth handler | `internal/handler/auth_handler_test.go` |
-| webhook handler | `internal/handler/webhook_handler_test.go` |
 | domain | `internal/domain/*_test.go` |
 | service | `internal/service/*_test.go` |
 

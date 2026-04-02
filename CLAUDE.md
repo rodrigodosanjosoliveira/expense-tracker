@@ -157,10 +157,9 @@ scripts/ai/validate-delivery.sh <DELIVERY_ID>
 ```
 
 ## Regra de execucao de testes
-- Testes unitarios e de handler: `go test -v ./internal/...`
-- Testes de integracao (com PostgreSQL real): `go test -v ./internal/... -tags=integration`
-- Nunca rodar testes de integracao sem banco disponivel.
+- Testes unitarios, de handler e de servico: `go test -v ./internal/...`
 - Foque no pacote impactado — nao rode tudo sem necessidade.
+- Testes de repositorio usam o in-memory repository — nao requerem banco de dados externo.
 
 ## Hotspots do repo
 - Handlers: `internal/handler/expense_handler.go`, `internal/handler/auth_handler.go`, `internal/handler/webhook_handler.go`

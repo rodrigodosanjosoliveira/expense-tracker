@@ -17,11 +17,13 @@ Runs the full automated validation script and interprets the results.
 ## Validation Checks (performed by the script)
 
 - Report file exists at `docs-ai/deliveries/<DELIVERY_ID>/report.md`
-- Required sections are present and non-empty
-- Acceptance criteria have explicit status
-- DELIVERY_ID is registered in `docs-ai/deliveries/INDEX.md`
-- No unresolved `ASSUNCAO` items without escalation note
-- Handoff contracts reference valid agent names
+- Required sections are present (`PM/Triage`, `Architecture/Guardrails`, `Dev`, `QA`, `Docs`, `Final Checklist`)
+- Required fields within each section are non-empty and not placeholder values
+- Final Checklist has no unchecked items
+- Front matter flags (`require_security`, `require_release_ops`, `arquitetura_change`) are valid booleans
+- When `require_security: true`, the `Security` section with `Resultado` field is required
+- When `require_release_ops: true`, the `Release/Ops` section with `Resultado` and `Plano de rollback` fields is required
+- When `arquitetura_change: true`, `rodrigo_approval` must be filled and not "N/A"
 
 ## Output
 

@@ -7,7 +7,7 @@ cd "$repo_root"
 
 if [ $# -lt 1 ]; then
   echo "Uso: scripts/ai/validate-delivery.sh <DELIVERY_ID>" >&2
-  echo "Exemplo: scripts/ai/validate-delivery.sh COMP-001" >&2
+  echo "Exemplo: scripts/ai/validate-delivery.sh INFRA-001" >&2
   exit 1
 fi
 

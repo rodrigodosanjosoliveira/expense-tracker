@@ -11,6 +11,7 @@ modulo_principal: "<MODULO>"
 stack_impactado: "Go (expense-tracker)|transversal"
 require_security: false
 require_release_ops: false
+require_front_handoff: false
 arquitetura_change: false
 rodrigo_approval: "N/A"
 ---
