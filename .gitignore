@@ -30,5 +30,5 @@ Thumbs.db
 # Air (hot reload)
 tmp/
 /vendor/
-/.claude/
+/.claude/settings.local.json
 /.env
