@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -67,7 +68,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, expense *domain.Expe
 
 	// Persistir; em caso de colisão de ID, gerar um UUID globalmente único e tentar novamente
 	if err := s.repo.Create(ctx, expense); err != nil {
-		if err == repository.ErrAlreadyExists {
+		if errors.Is(err, repository.ErrAlreadyExists) {
 			expense.ID = uuid.New().String()
 			if err2 := s.repo.Create(ctx, expense); err2 != nil {
 				return err2
@@ -212,7 +213,10 @@ func (s *ExpenseService) resolveCategoryForExpense(ctx context.Context, expense 
 		// Validar que a categoria pertence ao usuario e sincronizar o nome resolvido
 		cat, err := s.categoryService.GetCategory(ctx, *expense.CategoryID, expense.UserID)
 		if err != nil {
-			return domain.ErrCategoryNotFound
+			if errors.Is(err, repository.ErrNotFound) {
+				return domain.ErrCategoryNotFound
+			}
+			return err
 		}
 		expense.Category = cat.Name
 		return nil
@@ -222,7 +226,10 @@ func (s *ExpenseService) resolveCategoryForExpense(ctx context.Context, expense 
 		// Resolver nome para category_id
 		cat, err := s.categoryService.LookupByName(ctx, expense.Category, expense.UserID)
 		if err != nil {
-			return domain.ErrCategoryNotFound
+			if errors.Is(err, repository.ErrNotFound) {
+				return domain.ErrCategoryNotFound
+			}
+			return err
 		}
 		expense.CategoryID = &cat.ID
 		expense.Category = cat.Name

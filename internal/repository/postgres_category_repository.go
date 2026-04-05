@@ -21,7 +21,8 @@ func NewPostgresCategoryRepository(pool *pgxpool.Pool) *PostgresCategoryReposito
 }
 
 // Create persiste uma nova categoria
-// Detecta violacao de unique constraint (23505) e retorna domain.ErrCategoryAlreadyExists
+// Detecta violacao de unique constraint (23505) — distingue colisao de PK (retorna ErrAlreadyExists
+// para retry no servico) de violacao de unicidade de nome (retorna domain.ErrCategoryAlreadyExists)
 func (r *PostgresCategoryRepository) Create(ctx context.Context, category *domain.Category) error {
 	query := `
 		INSERT INTO categories (id, user_id, name, created_at, updated_at)
@@ -38,6 +39,11 @@ func (r *PostgresCategoryRepository) Create(ctx context.Context, category *domai
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			// PK collision → let the service retry with a new ID
+			if pgErr.ConstraintName == "categories_pkey" {
+				return ErrAlreadyExists
+			}
+			// Unique name constraint violation
 			return domain.ErrCategoryAlreadyExists
 		}
 		return err

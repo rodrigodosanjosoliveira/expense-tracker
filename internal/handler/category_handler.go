@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -48,10 +49,10 @@ func (h *CategoryHandler) CreateCategory(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.service.CreateCategory(r.Context(), cat); err != nil {
-		switch err {
-		case domain.ErrEmptyCategoryName, domain.ErrCategoryNameTooLong:
+		switch {
+		case errors.Is(err, domain.ErrEmptyCategoryName), errors.Is(err, domain.ErrCategoryNameTooLong):
 			http.Error(w, err.Error(), http.StatusBadRequest)
-		case domain.ErrCategoryAlreadyExists:
+		case errors.Is(err, domain.ErrCategoryAlreadyExists):
 			http.Error(w, err.Error(), http.StatusConflict)
 		default:
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -108,7 +109,7 @@ func (h *CategoryHandler) GetCategory(w http.ResponseWriter, r *http.Request) {
 
 	cat, err := h.service.GetCategory(r.Context(), id, userID)
 	if err != nil {
-		if err == repository.ErrNotFound || err == domain.ErrCategoryNotFound {
+		if errors.Is(err, repository.ErrNotFound) || errors.Is(err, domain.ErrCategoryNotFound) {
 			http.Error(w, "Category not found", http.StatusNotFound)
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -154,12 +155,12 @@ func (h *CategoryHandler) UpdateCategory(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.service.UpdateCategory(r.Context(), cat); err != nil {
-		switch err {
-		case domain.ErrEmptyCategoryName, domain.ErrCategoryNameTooLong:
+		switch {
+		case errors.Is(err, domain.ErrEmptyCategoryName), errors.Is(err, domain.ErrCategoryNameTooLong):
 			http.Error(w, err.Error(), http.StatusBadRequest)
-		case domain.ErrCategoryAlreadyExists:
+		case errors.Is(err, domain.ErrCategoryAlreadyExists):
 			http.Error(w, err.Error(), http.StatusConflict)
-		case repository.ErrNotFound, domain.ErrCategoryNotFound:
+		case errors.Is(err, repository.ErrNotFound), errors.Is(err, domain.ErrCategoryNotFound):
 			http.Error(w, "Category not found", http.StatusNotFound)
 		default:
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -197,10 +198,10 @@ func (h *CategoryHandler) DeleteCategory(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.service.DeleteCategory(r.Context(), id, userID); err != nil {
-		switch err {
-		case repository.ErrNotFound, domain.ErrCategoryNotFound:
+		switch {
+		case errors.Is(err, repository.ErrNotFound), errors.Is(err, domain.ErrCategoryNotFound):
 			http.Error(w, "Category not found", http.StatusNotFound)
-		case domain.ErrCategoryInUse:
+		case errors.Is(err, domain.ErrCategoryInUse):
 			http.Error(w, err.Error(), http.StatusConflict)
 		default:
 			http.Error(w, "Internal server error", http.StatusInternalServerError)

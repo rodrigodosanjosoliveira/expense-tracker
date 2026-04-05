@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,7 +55,7 @@ func (s *CategoryService) CreateCategory(ctx context.Context, category *domain.C
 
 	// Em caso de colisão de ID, gerar um UUID globalmente único e tentar novamente
 	if err := s.repo.Create(ctx, category); err != nil {
-		if err == repository.ErrAlreadyExists {
+		if errors.Is(err, repository.ErrAlreadyExists) {
 			category.ID = uuid.New().String()
 			return s.repo.Create(ctx, category)
 		}

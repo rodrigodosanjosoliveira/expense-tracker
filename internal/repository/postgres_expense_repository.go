@@ -26,8 +26,8 @@ func NewPostgresExpenseRepository(pool *pgxpool.Pool) *PostgresExpenseRepository
 // Create adiciona uma nova despesa no banco
 func (r *PostgresExpenseRepository) Create(ctx context.Context, expense *domain.Expense) error {
 	query := `
-		INSERT INTO expenses (id, user_id, description, amount, category, date, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO expenses (id, user_id, description, amount, category, category_id, date, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
 	_, err := r.pool.Exec(
@@ -38,6 +38,7 @@ func (r *PostgresExpenseRepository) Create(ctx context.Context, expense *domain.
 		expense.Description,
 		expense.Amount,
 		expense.Category,
+		expense.CategoryID,
 		expense.Date,
 		expense.CreatedAt,
 		expense.UpdatedAt,
@@ -57,7 +58,7 @@ func (r *PostgresExpenseRepository) Create(ctx context.Context, expense *domain.
 // GetByID retorna uma despesa pelo ID
 func (r *PostgresExpenseRepository) GetByID(ctx context.Context, id string) (*domain.Expense, error) {
 	query := `
-		SELECT id, user_id, description, amount, category, date, created_at, updated_at
+		SELECT id, user_id, description, amount, category, category_id, date, created_at, updated_at
 		FROM expenses
 		WHERE id = $1
 	`
@@ -69,6 +70,7 @@ func (r *PostgresExpenseRepository) GetByID(ctx context.Context, id string) (*do
 		&expense.Description,
 		&expense.Amount,
 		&expense.Category,
+		&expense.CategoryID,
 		&expense.Date,
 		&expense.CreatedAt,
 		&expense.UpdatedAt,
@@ -87,7 +89,7 @@ func (r *PostgresExpenseRepository) GetByID(ctx context.Context, id string) (*do
 // GetAll retorna todas as despesas
 func (r *PostgresExpenseRepository) GetAll(ctx context.Context) ([]*domain.Expense, error) {
 	query := `
-		SELECT id, user_id, description, amount, category, date, created_at, updated_at
+		SELECT id, user_id, description, amount, category, category_id, date, created_at, updated_at
 		FROM expenses
 		ORDER BY date DESC, created_at DESC
 	`
@@ -107,6 +109,7 @@ func (r *PostgresExpenseRepository) GetAll(ctx context.Context) ([]*domain.Expen
 			&expense.Description,
 			&expense.Amount,
 			&expense.Category,
+			&expense.CategoryID,
 			&expense.Date,
 			&expense.CreatedAt,
 			&expense.UpdatedAt,
@@ -128,7 +131,7 @@ func (r *PostgresExpenseRepository) GetAll(ctx context.Context) ([]*domain.Expen
 func (r *PostgresExpenseRepository) Update(ctx context.Context, expense *domain.Expense) error {
 	query := `
 		UPDATE expenses
-		SET description = $2, amount = $3, category = $4, date = $5, updated_at = $6
+		SET description = $2, amount = $3, category = $4, category_id = $5, date = $6, updated_at = $7
 		WHERE id = $1
 	`
 
@@ -140,6 +143,7 @@ func (r *PostgresExpenseRepository) Update(ctx context.Context, expense *domain.
 		expense.Description,
 		expense.Amount,
 		expense.Category,
+		expense.CategoryID,
 		expense.Date,
 		expense.UpdatedAt,
 	)
@@ -197,6 +201,7 @@ func (r *PostgresExpenseRepository) GetAllWithFilters(ctx context.Context, filte
 			&expense.Description,
 			&expense.Amount,
 			&expense.Category,
+			&expense.CategoryID,
 			&expense.Date,
 			&expense.CreatedAt,
 			&expense.UpdatedAt,
@@ -238,7 +243,7 @@ func (r *PostgresExpenseRepository) buildFilterQuery(filters *domain.ExpenseFilt
 	if isCount {
 		query = "SELECT COUNT(*) FROM expenses WHERE 1=1"
 	} else {
-		query = "SELECT id, user_id, description, amount, category, date, created_at, updated_at FROM expenses WHERE 1=1"
+		query = "SELECT id, user_id, description, amount, category, category_id, date, created_at, updated_at FROM expenses WHERE 1=1"
 	}
 
 	// Filtros WHERE
@@ -249,8 +254,14 @@ func (r *PostgresExpenseRepository) buildFilterQuery(filters *domain.ExpenseFilt
 		argCount++
 	}
 
-	if filters.Category != nil {
-		query += " AND category = $" + formatArgNum(argCount)
+	// Filtro por category_id (precedência sobre filtro por nome)
+	if filters.CategoryID != nil {
+		query += " AND category_id = $" + formatArgNum(argCount)
+		args = append(args, *filters.CategoryID)
+		argCount++
+	} else if filters.Category != nil {
+		// Filtro por nome de categoria (case-insensitive)
+		query += " AND LOWER(category) = LOWER($" + formatArgNum(argCount) + ")"
 		args = append(args, *filters.Category)
 		argCount++
 	}
