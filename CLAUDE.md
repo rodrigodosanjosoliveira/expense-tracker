@@ -18,6 +18,7 @@ Executar tasks no projeto Expense Tracker (Go REST API) com baixo custo de token
 1. Identifique o modulo impactado (consulte `docs-ai/03-MAPA-RAPIDO-MODULOS.md`).
 2. Leia apenas os arquivos relevantes ao modulo:
    - expense: `internal/handler/expense_handler.go`, `internal/service/expense_service.go`, `internal/repository/postgres_expense_repository.go`
+   - category: `internal/handler/category_handler.go`, `internal/service/category_service.go`, `internal/repository/category_repository.go`, `internal/repository/postgres_category_repository.go`, `internal/domain/category.go`
    - auth: `internal/handler/auth_handler.go`, `internal/service/auth_service.go`, `internal/middleware/auth.go`
    - webhook: `internal/handler/webhook_handler.go`, `internal/service/webhook_service.go`
    - notification: `internal/service/notification_service.go`, `internal/domain/notification.go`
@@ -162,15 +163,15 @@ scripts/ai/validate-delivery.sh <DELIVERY_ID>
 - Testes de repositorio usam o in-memory repository — nao requerem banco de dados externo.
 
 ## Hotspots do repo
-- Handlers: `internal/handler/expense_handler.go`, `internal/handler/auth_handler.go`, `internal/handler/webhook_handler.go`
-- Services: `internal/service/expense_service.go`, `internal/service/auth_service.go`, `internal/service/notification_service.go`
-- Repositories: `internal/repository/postgres_expense_repository.go`, `internal/repository/memory_expense_repository.go`
-- Domain: `internal/domain/expense.go`, `internal/domain/user.go`, `internal/domain/filters.go`
+- Handlers: `internal/handler/expense_handler.go`, `internal/handler/auth_handler.go`, `internal/handler/webhook_handler.go`, `internal/handler/category_handler.go`
+- Services: `internal/service/expense_service.go`, `internal/service/auth_service.go`, `internal/service/notification_service.go`, `internal/service/category_service.go`
+- Repositories: `internal/repository/postgres_expense_repository.go`, `internal/repository/memory_expense_repository.go`, `internal/repository/postgres_category_repository.go`, `internal/repository/memory_category_repository.go`
+- Domain: `internal/domain/expense.go`, `internal/domain/user.go`, `internal/domain/filters.go`, `internal/domain/category.go`
 - Auth middleware: `internal/middleware/auth.go`
 - Wiring: `cmd/api/main.go`
 - Migrations: `migrations/`
 - Config: `internal/config/config.go`
-- Testes: `internal/handler/*_test.go`
+- Testes: `internal/handler/*_test.go`, `internal/service/*_test.go`
 
 ## Modulos — referencias rapidas
 Ver taxonomia completa em: [docs-ai/03-MAPA-RAPIDO-MODULOS.md](docs-ai/03-MAPA-RAPIDO-MODULOS.md)

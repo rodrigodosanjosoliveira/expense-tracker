@@ -5,6 +5,7 @@ ultima_validacao: 2026-04-02
 criterio_validacao: codigo+teste
 fonte_de_verdade: codigo
 escalonamento: PM/Rodrigo
+ultima_atualizacao: EXPENSE-001
 ---
 
 # Invariantes Globais — Expense Tracker
@@ -34,6 +35,7 @@ Aplique a qualquer feature, melhoria ou bugfix. Sem excecao.
 - Repository recebe `filters.UserID` obrigatoriamente em `internal/repository/postgres_expense_repository.go`.
 - InMemory repository deve respeitar o mesmo isolamento por `user_id`.
 - Nunca retornar dados de um usuario em request autenticado de outro usuario.
+- **category_id ownership**: ao referenciar uma categoria em uma despesa, o service valida que o `category_id` pertence ao mesmo `user_id` da despesa. Violacao retorna `domain.ErrCategoryNotFound` mapeado para HTTP 422 — nunca expoe a existencia de categoria de outro usuario.
 
 ## Banco de Dados (PostgreSQL + pgx)
 
@@ -50,6 +52,12 @@ Aplique a qualquer feature, melhoria ou bugfix. Sem excecao.
 - Usar `repository.ErrNotFound`, `repository.ErrAlreadyExists` para erros de persistencia.
 - Nunca comparar erros por string literal — usar `errors.Is()`.
 - Handlers mapeiam erros sentinela para HTTP status codes apropriados.
+- Erros sentinela de categoria (adicionados em EXPENSE-001):
+  - `domain.ErrCategoryNotFound` — mapeado para HTTP 404 (category handler) e HTTP 422 (expense handler, quando category_id invalido ou de outro usuario).
+  - `domain.ErrCategoryAlreadyExists` — mapeado para HTTP 409.
+  - `domain.ErrCategoryInUse` — mapeado para HTTP 409 (DELETE categoria com despesas referenciando).
+  - `domain.ErrEmptyCategoryName` — mapeado para HTTP 400.
+  - `domain.ErrCategoryNameTooLong` — mapeado para HTTP 400.
 
 ## Testes
 

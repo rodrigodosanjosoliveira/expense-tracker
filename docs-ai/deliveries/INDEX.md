@@ -27,3 +27,4 @@ escalonamento: PM/Rodrigo
 
 | ID | Descricao | Status | Data |
 |----|-----------|--------|------|
+| EXPENSE-001 | Cadastro de categorias normalizadas para despesas | DRAFT | 2026-04-02 |
