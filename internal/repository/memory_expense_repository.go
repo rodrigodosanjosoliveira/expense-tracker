@@ -150,8 +150,9 @@ func (r *MemoryExpenseRepository) matchesFilters(expense *domain.Expense, filter
 		}
 	}
 
-	// Filtro por categoria (nome, case-insensitive)
-	if filters.Category != nil && !strings.EqualFold(expense.Category, *filters.Category) {
+	// Filtro por categoria (nome, case-insensitive).
+	// Quando CategoryID está definido, ele tem precedência e o filtro por nome é ignorado.
+	if filters.CategoryID == nil && filters.Category != nil && !strings.EqualFold(expense.Category, *filters.Category) {
 		return false
 	}
 
