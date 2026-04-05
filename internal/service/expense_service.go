@@ -205,7 +205,10 @@ func (s *ExpenseService) ListExpensesWithFilters(ctx context.Context, filters *d
 // Prioridade: category_id (validar ownership) > category string (lookup por nome).
 // Se nenhum dos dois estiver presente, o comportamento legado e mantido (Validate ja aceitou).
 func (s *ExpenseService) resolveCategoryForExpense(ctx context.Context, expense *domain.Expense) error {
-	if expense.CategoryID != nil && *expense.CategoryID != "" {
+	if expense.CategoryID != nil {
+		if *expense.CategoryID == "" {
+			return domain.ErrCategoryNotFound
+		}
 		// Validar que a categoria pertence ao usuario
 		_, err := s.categoryService.GetCategory(ctx, *expense.CategoryID, expense.UserID)
 		if err != nil {
