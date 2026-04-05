@@ -62,6 +62,8 @@ func (h *ExpenseHandler) CreateExpense(w http.ResponseWriter, r *http.Request) {
 		switch err {
 		case domain.ErrEmptyDescription, domain.ErrInvalidAmount, domain.ErrEmptyCategory:
 			http.Error(w, err.Error(), http.StatusBadRequest)
+		case domain.ErrCategoryNotFound:
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		default:
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
@@ -238,6 +240,8 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Expense not found", http.StatusNotFound)
 		case domain.ErrEmptyDescription, domain.ErrInvalidAmount, domain.ErrEmptyCategory:
 			http.Error(w, err.Error(), http.StatusBadRequest)
+		case domain.ErrCategoryNotFound:
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		default:
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}

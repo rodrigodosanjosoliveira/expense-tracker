@@ -59,6 +59,8 @@ func main() {
 	var cleanup func()
 
 	// Decidir qual repository usar baseado em variáveis de ambiente
+	var categoryRepo repository.CategoryRepository
+
 	if cfg.UsePostgreSQL() {
 		// Usar PostgreSQL
 		log.Println("Initializing PostgreSQL repository...")
@@ -69,6 +71,7 @@ func main() {
 		expenseRepo = repository.NewPostgresExpenseRepository(pool)
 		userRepo = repository.NewPostgresUserRepository(pool)
 		webhookRepo = repository.NewPostgresWebhookRepository(pool)
+		categoryRepo = repository.NewPostgresCategoryRepository(pool)
 		cleanup = func() {
 			log.Println("Closing database connection...")
 			pool.Close()
@@ -78,6 +81,7 @@ func main() {
 		// Usar in-memory (desenvolvimento/testes)
 		log.Println("Using in-memory repository (set DB_HOST to use PostgreSQL)")
 		expenseRepo = repository.NewMemoryExpenseRepository()
+		categoryRepo = repository.NewMemoryCategoryRepository()
 		// Note: UserRepository e WebhookRepository não têm implementação in-memory, PostgreSQL é obrigatório
 		log.Println("⚠ WARNING: Authentication and webhooks require PostgreSQL. Set DB_HOST to enable.")
 		cleanup = func() {}
@@ -88,6 +92,12 @@ func main() {
 	// Inicializar services
 	idGen := service.NewUUIDGenerator()
 	expenseService := service.NewExpenseService(expenseRepo, idGen)
+
+	// Inicializar category service e injetar no expense service
+	categoryService := service.NewCategoryService(categoryRepo, idGen)
+	expenseService.SetCategoryService(categoryService)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
+
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 
 	// Inicializar autenticação (apenas se PostgreSQL estiver configurado)
@@ -195,6 +205,63 @@ func main() {
 			}
 		})
 		log.Println("⚠ Expense routes running WITHOUT authentication")
+	}
+
+	// Rotas de categorias (protegidas com autenticação se disponível)
+	if authMiddleware != nil {
+		mux.HandleFunc("/categories", func(w http.ResponseWriter, r *http.Request) {
+			authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodGet:
+					categoryHandler.ListCategories(w, r)
+				case http.MethodPost:
+					categoryHandler.CreateCategory(w, r)
+				default:
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+			})(w, r)
+		})
+
+		mux.HandleFunc("/categories/", func(w http.ResponseWriter, r *http.Request) {
+			authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodGet:
+					categoryHandler.GetCategory(w, r)
+				case http.MethodPut:
+					categoryHandler.UpdateCategory(w, r)
+				case http.MethodDelete:
+					categoryHandler.DeleteCategory(w, r)
+				default:
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+			})(w, r)
+		})
+		log.Println("✓ Category routes registered: /categories")
+	} else {
+		mux.HandleFunc("/categories", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				categoryHandler.ListCategories(w, r)
+			case http.MethodPost:
+				categoryHandler.CreateCategory(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})
+
+		mux.HandleFunc("/categories/", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				categoryHandler.GetCategory(w, r)
+			case http.MethodPut:
+				categoryHandler.UpdateCategory(w, r)
+			case http.MethodDelete:
+				categoryHandler.DeleteCategory(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})
+		log.Println("⚠ Category routes running WITHOUT authentication")
 	}
 
 	// Rotas de webhooks (protegidas com autenticação)

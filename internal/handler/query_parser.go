@@ -14,9 +14,14 @@ func ParseExpenseFilters(r *http.Request) *domain.ExpenseFilters {
 	filters := domain.NewExpenseFilters()
 	query := r.URL.Query()
 
-	// Filtro por categoria
+	// Filtro por categoria (nome, case-insensitive)
 	if category := query.Get("category"); category != "" {
 		filters.Category = &category
+	}
+
+	// Filtro por category_id (UUID exato)
+	if categoryID := query.Get("category_id"); categoryID != "" {
+		filters.CategoryID = &categoryID
 	}
 
 	// Filtro por valor mínimo
