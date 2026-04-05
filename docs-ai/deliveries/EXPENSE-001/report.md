@@ -148,7 +148,7 @@ CategoryService interface:
 - FK: `FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT`.
 - NOT VALID pode ser usado para adicionar a FK sem validar linhas existentes (todas tem `category_id = NULL`, o que e valido para FK nullable).
 - Enforcement de obrigatoriedade apenas na camada de service: se `category_id` e nil E `category` (string) e vazio no body, o servico rejeita com `domain.ErrEmptyCategory`.
-- Despesas legadas com `category_id = NULL` retornam `"category_id": null, "category": null` no JSON — validado via `*string` (ponteiro) no campo `CategoryID` de `domain.Expense`.
+- Despesas legadas com `category_id = NULL` retornam `"category_id": null, "category": ""` no JSON; apenas `category_id` e nullable, validado via `*string` (ponteiro) no campo `CategoryID` de `domain.Expense`.
 
 ### Adaptacoes obrigatorias em domain.Expense
 
