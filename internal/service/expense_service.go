@@ -224,6 +224,7 @@ func (s *ExpenseService) resolveCategoryForExpense(ctx context.Context, expense 
 			return domain.ErrCategoryNotFound
 		}
 		expense.CategoryID = &cat.ID
+		expense.Category = cat.Name
 		return nil
 	}
 
