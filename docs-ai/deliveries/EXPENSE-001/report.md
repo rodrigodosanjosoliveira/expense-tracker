@@ -80,7 +80,7 @@ A query de filtro em `postgres_expense_repository.go` filtra por `category` como
 ~~1. **Estrategia de transicao de `category` (string) para `category_id` (UUID)**~~ — **RESPONDIDO**: coluna `category` VARCHAR sera **deprecada** (mantida durante transicao; remocao em entrega futura apos migracao completa dos dados).
 ~~2. **Clientes existentes**~~ — **RESPONDIDO**: campo `category` (string) continuara sendo aceito no body; o servico fara **lookup por nome** na tabela `categories`. Se a categoria nao existir, retorna erro (sem auto-create).
 ~~3. **Case-sensitivity no nome da categoria**~~ — **RESPONDIDO**: unicidade **case-insensitive** — UNIQUE constraint com `LOWER(name)` ou `citext` no banco.
-~~4. **Categoria padrao**~~ — **RESPONDIDO**: despesas legadas sem `category_id` retornam `"category_id": null` e `"category": null` no GET.
+~~4. **Categoria padrao**~~ — **RESPONDIDO**: despesas legadas sem `category_id` retornam `"category_id": null` e `"category": ""` no GET.
 ~~5. **Delecao de categoria em uso**~~ — **RESPONDIDO**: DELETE retorna **HTTP 409** com `domain.ErrCategoryInUse`. ON DELETE RESTRICT na FK.
 
 ### ASSUNCOES (registradas)
