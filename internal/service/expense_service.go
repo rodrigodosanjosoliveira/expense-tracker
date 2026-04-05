@@ -209,11 +209,12 @@ func (s *ExpenseService) resolveCategoryForExpense(ctx context.Context, expense 
 		if *expense.CategoryID == "" {
 			return domain.ErrCategoryNotFound
 		}
-		// Validar que a categoria pertence ao usuario
-		_, err := s.categoryService.GetCategory(ctx, *expense.CategoryID, expense.UserID)
+		// Validar que a categoria pertence ao usuario e sincronizar o nome resolvido
+		cat, err := s.categoryService.GetCategory(ctx, *expense.CategoryID, expense.UserID)
 		if err != nil {
 			return domain.ErrCategoryNotFound
 		}
+		expense.Category = cat.Name
 		return nil
 	}
 
