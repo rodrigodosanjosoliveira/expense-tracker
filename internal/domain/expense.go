@@ -41,7 +41,7 @@ func (e *Expense) Validate() error {
 	if e.Amount <= 0 {
 		return ErrInvalidAmount
 	}
-	if e.Category == "" && e.CategoryID == nil {
+	if e.Category == "" && (e.CategoryID == nil || *e.CategoryID == "") {
 		return ErrEmptyCategory
 	}
 	return nil
