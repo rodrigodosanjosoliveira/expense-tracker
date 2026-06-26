@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/rodrigo/expense-tracker/internal/domain"
@@ -137,8 +138,21 @@ func (r *MemoryExpenseRepository) Count(ctx context.Context, filters *domain.Exp
 
 // matchesFilters verifica se uma despesa corresponde aos filtros
 func (r *MemoryExpenseRepository) matchesFilters(expense *domain.Expense, filters *domain.ExpenseFilters) bool {
-	// Filtro por categoria
-	if filters.Category != nil && expense.Category != *filters.Category {
+	// Filtro por user_id (isolamento de dados)
+	if filters.UserID != nil && expense.UserID != *filters.UserID {
+		return false
+	}
+
+	// Filtro por category_id (igualdade exata)
+	if filters.CategoryID != nil {
+		if expense.CategoryID == nil || *expense.CategoryID != *filters.CategoryID {
+			return false
+		}
+	}
+
+	// Filtro por categoria (nome, case-insensitive).
+	// Quando CategoryID está definido, ele tem precedência e o filtro por nome é ignorado.
+	if filters.CategoryID == nil && filters.Category != nil && !strings.EqualFold(expense.Category, *filters.Category) {
 		return false
 	}
 

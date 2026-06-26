@@ -8,11 +8,14 @@ type ExpenseFilters struct {
 	UserID *string `json:"-"`
 
 	// Filtros
-	Category  *string    `json:"category,omitempty"`
-	MinAmount *float64   `json:"min_amount,omitempty"`
-	MaxAmount *float64   `json:"max_amount,omitempty"`
-	StartDate *time.Time `json:"start_date,omitempty"`
-	EndDate   *time.Time `json:"end_date,omitempty"`
+	// Category filters by category name (case-insensitive, maps to LOWER(categories.name) = LOWER($N))
+	Category *string `json:"category,omitempty"`
+	// CategoryID filters directly by the categories.id UUID (takes precedence over Category name filter)
+	CategoryID *string    `json:"category_id,omitempty"`
+	MinAmount  *float64   `json:"min_amount,omitempty"`
+	MaxAmount  *float64   `json:"max_amount,omitempty"`
+	StartDate  *time.Time `json:"start_date,omitempty"`
+	EndDate    *time.Time `json:"end_date,omitempty"`
 
 	// Ordenação
 	SortBy    string `json:"sort_by,omitempty"`    // date, amount, category, created_at

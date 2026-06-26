@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -59,9 +60,11 @@ func (h *ExpenseHandler) CreateExpense(w http.ResponseWriter, r *http.Request) {
 	expense.UserID = userID
 
 	if err := h.service.CreateExpense(r.Context(), &expense); err != nil {
-		switch err {
-		case domain.ErrEmptyDescription, domain.ErrInvalidAmount, domain.ErrEmptyCategory:
+		switch {
+		case errors.Is(err, domain.ErrEmptyDescription), errors.Is(err, domain.ErrInvalidAmount), errors.Is(err, domain.ErrEmptyCategory):
 			http.Error(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, domain.ErrCategoryNotFound):
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		default:
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
@@ -107,7 +110,7 @@ func (h *ExpenseHandler) GetExpense(w http.ResponseWriter, r *http.Request) {
 
 	expense, err := h.service.GetExpense(r.Context(), id)
 	if err != nil {
-		if err == repository.ErrNotFound {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, "Expense not found", http.StatusNotFound)
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -210,7 +213,7 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	// Verificar se a despesa existe e pertence ao usuário
 	existing, err := h.service.GetExpense(r.Context(), id)
 	if err != nil {
-		if err == repository.ErrNotFound {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, "Expense not found", http.StatusNotFound)
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -233,11 +236,13 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	expense.UserID = userID // Manter o mesmo user_id
 
 	if err := h.service.UpdateExpense(r.Context(), &expense); err != nil {
-		switch err {
-		case repository.ErrNotFound:
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
 			http.Error(w, "Expense not found", http.StatusNotFound)
-		case domain.ErrEmptyDescription, domain.ErrInvalidAmount, domain.ErrEmptyCategory:
+		case errors.Is(err, domain.ErrEmptyDescription), errors.Is(err, domain.ErrInvalidAmount), errors.Is(err, domain.ErrEmptyCategory):
 			http.Error(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, domain.ErrCategoryNotFound):
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		default:
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
@@ -280,7 +285,7 @@ func (h *ExpenseHandler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 	// Verificar se a despesa existe e pertence ao usuário
 	existing, err := h.service.GetExpense(r.Context(), id)
 	if err != nil {
-		if err == repository.ErrNotFound {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, "Expense not found", http.StatusNotFound)
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -294,7 +299,7 @@ func (h *ExpenseHandler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.DeleteExpense(r.Context(), id); err != nil {
-		if err == repository.ErrNotFound {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, "Expense not found", http.StatusNotFound)
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)

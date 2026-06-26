@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rodrigo/expense-tracker/internal/domain"
 	"github.com/rodrigo/expense-tracker/internal/repository"
 )
@@ -12,7 +14,8 @@ import (
 type ExpenseService struct {
 	repo                repository.ExpenseRepository
 	idGenerator         IDGenerator
-	notificationService *NotificationService // Opcional: para notificações
+	notificationService *NotificationService  // Opcional: para notificações
+	categoryService     CategoryServiceInterface // Opcional: para validação de categoria
 }
 
 // IDGenerator é uma interface para gerar IDs únicos
@@ -34,11 +37,23 @@ func (s *ExpenseService) SetNotificationService(notificationService *Notificatio
 	s.notificationService = notificationService
 }
 
+// SetCategoryService injeta o servico de categorias para validacao de category_id
+func (s *ExpenseService) SetCategoryService(categorySvc CategoryServiceInterface) {
+	s.categoryService = categorySvc
+}
+
 // CreateExpense cria uma nova despesa
 func (s *ExpenseService) CreateExpense(ctx context.Context, expense *domain.Expense) error {
 	// Validar
 	if err := expense.Validate(); err != nil {
 		return err
+	}
+
+	// Validar/resolver categoria via CategoryService (se injetado)
+	if s.categoryService != nil {
+		if err := s.resolveCategoryForExpense(ctx, expense); err != nil {
+			return err
+		}
 	}
 
 	// Gerar ID se não fornecido
@@ -51,9 +66,16 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, expense *domain.Expe
 	expense.CreatedAt = now
 	expense.UpdatedAt = now
 
-	// Persistir
+	// Persistir; em caso de colisão de ID, gerar um UUID globalmente único e tentar novamente
 	if err := s.repo.Create(ctx, expense); err != nil {
-		return err
+		if errors.Is(err, repository.ErrAlreadyExists) {
+			expense.ID = uuid.New().String()
+			if err2 := s.repo.Create(ctx, expense); err2 != nil {
+				return err2
+			}
+		} else {
+			return err
+		}
 	}
 
 	// Disparar notificações (se configurado)
@@ -86,6 +108,13 @@ func (s *ExpenseService) UpdateExpense(ctx context.Context, expense *domain.Expe
 	// Validar
 	if err := expense.Validate(); err != nil {
 		return err
+	}
+
+	// Validar/resolver categoria via CategoryService (se injetado)
+	if s.categoryService != nil {
+		if err := s.resolveCategoryForExpense(ctx, expense); err != nil {
+			return err
+		}
 	}
 
 	// Verificar se existe
@@ -171,4 +200,42 @@ func (s *ExpenseService) ListExpensesWithFilters(ctx context.Context, filters *d
 		Data:       expenses,
 		Pagination: pagination,
 	}, nil
+}
+
+// resolveCategoryForExpense valida ou resolve a categoria de uma despesa.
+// Prioridade: category_id (validar ownership) > category string (lookup por nome).
+// Se nenhum dos dois estiver presente, o comportamento legado e mantido (Validate ja aceitou).
+func (s *ExpenseService) resolveCategoryForExpense(ctx context.Context, expense *domain.Expense) error {
+	if expense.CategoryID != nil {
+		if *expense.CategoryID == "" {
+			return domain.ErrCategoryNotFound
+		}
+		// Validar que a categoria pertence ao usuario e sincronizar o nome resolvido
+		cat, err := s.categoryService.GetCategory(ctx, *expense.CategoryID, expense.UserID)
+		if err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				return domain.ErrCategoryNotFound
+			}
+			return err
+		}
+		expense.Category = cat.Name
+		return nil
+	}
+
+	if expense.Category != "" {
+		// Resolver nome para category_id
+		cat, err := s.categoryService.LookupByName(ctx, expense.Category, expense.UserID)
+		if err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				return domain.ErrCategoryNotFound
+			}
+			return err
+		}
+		expense.CategoryID = &cat.ID
+		expense.Category = cat.Name
+		return nil
+	}
+
+	// Nenhum dos dois: comportamento legado — sem validacao
+	return nil
 }
