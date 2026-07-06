@@ -118,8 +118,7 @@ Logs esperados confirmam o modo:
 
 ## Opção 3 — Execução rápida em memória (sem banco)
 
-Para experimentar expenses/categories sem subir Postgres. **Sem auth/webhooks.**
-
+Para rodar a API sem subir Postgres (útil para `/health` e `/swagger`). **Sem auth/webhooks** — e as rotas de expenses/categories retornam **401** porque não há `user_id` no contexto.
 ```bash
 # Deixe DB_HOST vazio e ainda assim defina um JWT_SECRET válido (a validação sempre roda)
 # PowerShell:
