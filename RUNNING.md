@@ -23,8 +23,8 @@ A aplicação decide o repositório em runtime pela variável **`DB_HOST`**
 (`internal/config/config.go` → `UsePostgreSQL()`):
 
 - **`DB_HOST` vazio** → repositório **in-memory**. Sobe rápido, mas **auth, webhooks e
-  notificações ficam desabilitados** (só existem em PostgreSQL). Rotas de expenses/categories
-  rodam **sem autenticação**.
+  notificações ficam desabilitados** (só existem em PostgreSQL). As rotas de expenses/categories
+  ficam registradas, porém **retornam 401** porque os handlers exigem `user_id` no contexto (injetado apenas pelo middleware JWT).
 - **`DB_HOST` preenchido** → **PostgreSQL**. Habilita auth JWT, webhooks e notificações.
 
 ---
