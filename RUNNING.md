@@ -135,8 +135,8 @@ Você verá `Using in-memory repository` e avisos de que auth/webhooks estão de
 |------|---------|------|
 | `/health` | GET | não |
 | `/auth/register`, `/auth/login` | POST | não (só com PostgreSQL) |
-| `/expenses`, `/expenses/{id}` | GET/POST/PUT/DELETE | JWT (se PostgreSQL) |
-| `/categories`, `/categories/{id}` | GET/POST/PUT/DELETE | JWT (se PostgreSQL) |
+| `/expenses`, `/expenses/{id}` | GET/POST/PUT/DELETE | JWT (PostgreSQL); 401 em in-memory |
+| `/categories`, `/categories/{id}` | GET/POST/PUT/DELETE | JWT (PostgreSQL); 401 em in-memory |
 | `/webhooks`, `/webhooks/{id}` | GET/POST/PUT/DELETE | JWT (só com PostgreSQL) |
 | `/swagger/` | GET | não |
 
