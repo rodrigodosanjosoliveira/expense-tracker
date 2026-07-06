@@ -1,0 +1,353 @@
+{
+  "info": {
+    "name": "Expense Tracker API",
+    "description": "Collection da API REST de controle de despesas (Go). Fluxo: registrar/login em Authentication (salva {{jwt_token}} automaticamente) e depois usar as demais pastas. Todas as rotas exceto /health, /auth/* exigem PostgreSQL + JWT. Base URL e variaveis vem do environment 'Expense Tracker - Local'.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{jwt_token}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "expense_id", "value": "", "type": "string" },
+    { "key": "category_id", "value": "", "type": "string" },
+    { "key": "webhook_id", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] },
+        "description": "Health check. Retorna 200 OK. Nao requer autenticacao."
+      },
+      "response": []
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) {",
+                  "    pm.environment.set('jwt_token', json.token);",
+                  "    console.log('jwt_token salvo a partir do registro');",
+                  "  }",
+                  "  if (json.user && json.user.id) {",
+                  "    pm.environment.set('user_id', json.user.id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"rodrigo\",\n  \"email\": \"rodrigo@example.com\",\n  \"password\": \"senha1234\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] },
+            "description": "Cria usuario. username: 3-50 chars [a-zA-Z0-9_]; email valido; password >= 8 chars. Retorna 201 com token JWT (salvo em {{jwt_token}}). 409 se username/email ja existir."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) {",
+                  "    pm.environment.set('jwt_token', json.token);",
+                  "    console.log('jwt_token salvo a partir do login');",
+                  "  }",
+                  "  if (json.user && json.user.id) {",
+                  "    pm.environment.set('user_id', json.user.id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"rodrigo\",\n  \"password\": \"senha1234\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] },
+            "description": "Autentica por username + password. Retorna 200 com token JWT (salvo em {{jwt_token}}). 401 se credenciais invalidas."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Expenses",
+      "item": [
+        {
+          "name": "Create Expense",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) { pm.collectionVariables.set('expense_id', json.id); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Almoco\",\n  \"amount\": 42.90,\n  \"category\": \"Alimentacao\",\n  \"date\": \"2026-07-04T12:00:00Z\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/expenses", "host": ["{{base_url}}"], "path": ["expenses"] },
+            "description": "Cria despesa. Obrigatorio: description, amount > 0, e ao menos um de category (texto) ou category_id (UUID). user_id vem do JWT. Salva o id em {{expense_id}}. 422 se category_id nao existir."
+          },
+          "response": []
+        },
+        {
+          "name": "List Expenses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/expenses?sort_by=date&sort_order=desc&limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["expenses"],
+              "query": [
+                { "key": "category", "value": "Alimentacao", "disabled": true },
+                { "key": "min_amount", "value": "10", "disabled": true },
+                { "key": "max_amount", "value": "100", "disabled": true },
+                { "key": "start_date", "value": "2026-01-01", "disabled": true },
+                { "key": "end_date", "value": "2026-12-31", "disabled": true },
+                { "key": "sort_by", "value": "date" },
+                { "key": "sort_order", "value": "desc" },
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" },
+                { "key": "page", "value": "1", "disabled": true }
+              ]
+            },
+            "description": "Lista despesas do usuario autenticado com filtros/paginacao. sort_by: date|amount|category|created_at. sort_order: asc|desc. Filtros opcionais desabilitados por padrao — habilite conforme necessario."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Expense by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/expenses/{{expense_id}}", "host": ["{{base_url}}"], "path": ["expenses", "{{expense_id}}"] },
+            "description": "Retorna uma despesa por ID. 404 se nao existir, 403 se pertencer a outro usuario."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Almoco (atualizado)\",\n  \"amount\": 55.00,\n  \"category\": \"Alimentacao\",\n  \"date\": \"2026-07-04T12:00:00Z\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/expenses/{{expense_id}}", "host": ["{{base_url}}"], "path": ["expenses", "{{expense_id}}"] },
+            "description": "Atualiza despesa existente. Mesmas regras de validacao do create. 404 se nao existir, 403 se de outro usuario."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Expense",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/expenses/{{expense_id}}", "host": ["{{base_url}}"], "path": ["expenses", "{{expense_id}}"] },
+            "description": "Remove despesa por ID. 204 em sucesso, 404 se nao existir, 403 se de outro usuario."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "Create Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) { pm.collectionVariables.set('category_id', json.id); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alimentacao\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/categories", "host": ["{{base_url}}"], "path": ["categories"] },
+            "description": "Cria categoria (apenas name). Salva o id em {{category_id}}. 400 se nome vazio/muito longo, 409 se ja existir para o usuario."
+          },
+          "response": []
+        },
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/categories", "host": ["{{base_url}}"], "path": ["categories"] },
+            "description": "Lista categorias do usuario autenticado."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Category by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/categories/{{category_id}}", "host": ["{{base_url}}"], "path": ["categories", "{{category_id}}"] },
+            "description": "Retorna categoria por ID. 404 se nao existir/for de outro usuario."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alimentacao e Bebidas\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/categories/{{category_id}}", "host": ["{{base_url}}"], "path": ["categories", "{{category_id}}"] },
+            "description": "Atualiza o nome da categoria. 409 se conflitar com nome existente, 404 se nao encontrada."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/categories/{{category_id}}", "host": ["{{base_url}}"], "path": ["categories", "{{category_id}}"] },
+            "description": "Remove categoria por ID. 204 em sucesso. 409 se estiver em uso por despesas, 404 se nao existir."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Create Webhook",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) { pm.collectionVariables.set('webhook_id', json.id); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Meu Slack\",\n  \"type\": \"slack\",\n  \"url\": \"https://hooks.slack.com/services/T000/B000/XXXX\",\n  \"events\": [\"expense.created\", \"high_expense.detected\"],\n  \"is_active\": true\n}"
+            },
+            "url": { "raw": "{{base_url}}/webhooks", "host": ["{{base_url}}"], "path": ["webhooks"] },
+            "description": "Cria webhook. type: slack|discord|custom. url deve comecar com http/https (>=10 chars). events (nao vazio): expense.created, expense.updated, expense.deleted, daily_limit.reached, weekly_limit.reached, monthly_limit.reached, high_expense.detected. Salva id em {{webhook_id}}."
+          },
+          "response": []
+        },
+        {
+          "name": "List Webhooks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/webhooks", "host": ["{{base_url}}"], "path": ["webhooks"] },
+            "description": "Lista webhooks do usuario autenticado."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Webhook by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/webhooks/{{webhook_id}}", "host": ["{{base_url}}"], "path": ["webhooks", "{{webhook_id}}"] },
+            "description": "Retorna webhook por ID. 404 se nao existir, 403 se de outro usuario."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Webhook",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Meu Slack (atualizado)\",\n  \"type\": \"slack\",\n  \"url\": \"https://hooks.slack.com/services/T000/B000/YYYY\",\n  \"events\": [\"expense.created\"],\n  \"is_active\": false\n}"
+            },
+            "url": { "raw": "{{base_url}}/webhooks/{{webhook_id}}", "host": ["{{base_url}}"], "path": ["webhooks", "{{webhook_id}}"] },
+            "description": "Atualiza webhook. Mesmas validacoes do create. 404 se nao existir, 403 se de outro usuario."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Webhook",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/webhooks/{{webhook_id}}", "host": ["{{base_url}}"], "path": ["webhooks", "{{webhook_id}}"] },
+            "description": "Remove webhook por ID. 204 em sucesso, 404 se nao existir, 403 se de outro usuario."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
